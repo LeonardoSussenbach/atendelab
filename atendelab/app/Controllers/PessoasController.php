@@ -10,12 +10,11 @@ class PessoasController
         $this->pdo = $pdo;
     }
 
-    // ─── LISTAR TODOS ───────────────────────────────────────────────────────
     public function listar(): void
     {
         header('Content-Type: application/json; charset=utf-8');
 
-        $sql = 'SELECT id, nome, email, telefone, matricula, status, criado_em
+        $sql = 'SELECT id, nome, documento, email, telefone, curso, periodo, observacoes, status, criado_em
                 FROM pessoas
                 ORDER BY id DESC';
 
@@ -25,7 +24,6 @@ class PessoasController
         echo json_encode($pessoas, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
     }
 
-    // ─── BUSCAR POR ID ──────────────────────────────────────────────────────
     public function buscarPorId(): void
     {
         header('Content-Type: application/json; charset=utf-8');
@@ -38,9 +36,8 @@ class PessoasController
             return;
         }
 
-        $sql  = 'SELECT id, nome, email, telefone, matricula, status, criado_em
-                 FROM pessoas
-                 WHERE id = :id';
+        $sql  = 'SELECT id, nome, documento, email, telefone, curso, periodo, observacoes, status, criado_em
+                 FROM pessoas WHERE id = :id';
 
         $stmt = $this->pdo->prepare($sql);
         $stmt->bindValue(':id', $id, PDO::PARAM_INT);
@@ -57,24 +54,26 @@ class PessoasController
         echo json_encode($pessoa, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
     }
 
-    // ─── CRIAR ──────────────────────────────────────────────────────────────
     public function criar(): void
     {
         header('Content-Type: application/json; charset=utf-8');
 
-        $nome      = trim($_POST['nome']      ?? '');
-        $email     = trim($_POST['email']     ?? '');
-        $telefone  = trim($_POST['telefone']  ?? '');
-        $matricula = trim($_POST['matricula'] ?? '');
-        $status    = $_POST['status']         ?? 'ativo';
+        $nome        = trim($_POST['nome']        ?? '');
+        $documento   = trim($_POST['documento']   ?? '');
+        $email       = trim($_POST['email']       ?? '');
+        $telefone    = trim($_POST['telefone']    ?? '');
+        $curso       = trim($_POST['curso']       ?? '');
+        $periodo     = trim($_POST['periodo']     ?? '');
+        $observacoes = trim($_POST['observacoes'] ?? '');
+        $status      = $_POST['status']           ?? 'ativo';
 
-        if ($nome === '') {
+        if ($nome === '' || $documento === '' || $email === '') {
             http_response_code(400);
-            echo json_encode(['erro' => 'O nome é obrigatório.']);
+            echo json_encode(['erro' => 'Nome, documento e e-mail são obrigatórios.']);
             return;
         }
 
-        if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             http_response_code(400);
             echo json_encode(['erro' => 'E-mail inválido.']);
             return;
@@ -87,15 +86,18 @@ class PessoasController
         }
 
         try {
-            $sql  = 'INSERT INTO pessoas (nome, email, telefone, matricula, status)
-                     VALUES (:nome, :email, :telefone, :matricula, :status)';
+            $sql = 'INSERT INTO pessoas (nome, documento, email, telefone, curso, periodo, observacoes, status)
+                    VALUES (:nome, :documento, :email, :telefone, :curso, :periodo, :observacoes, :status)';
 
             $stmt = $this->pdo->prepare($sql);
-            $stmt->bindValue(':nome',      $nome);
-            $stmt->bindValue(':email',     $email ?: null);
-            $stmt->bindValue(':telefone',  $telefone ?: null);
-            $stmt->bindValue(':matricula', $matricula ?: null);
-            $stmt->bindValue(':status',    $status);
+            $stmt->bindValue(':nome',        $nome);
+            $stmt->bindValue(':documento',   $documento);
+            $stmt->bindValue(':email',       $email);
+            $stmt->bindValue(':telefone',    $telefone  ?: null);
+            $stmt->bindValue(':curso',       $curso     ?: null);
+            $stmt->bindValue(':periodo',     $periodo   ?: null);
+            $stmt->bindValue(':observacoes', $observacoes ?: null);
+            $stmt->bindValue(':status',      $status);
             $stmt->execute();
 
             http_response_code(201);
@@ -106,29 +108,31 @@ class PessoasController
 
         } catch (PDOException $e) {
             http_response_code(500);
-            echo json_encode(['erro' => 'Erro ao cadastrar pessoa.']);
+            echo json_encode(['erro' => 'Erro ao cadastrar pessoa. Documento ou e-mail já cadastrado.']);
         }
     }
 
-    // ─── ATUALIZAR ──────────────────────────────────────────────────────────
     public function atualizar(): void
     {
         header('Content-Type: application/json; charset=utf-8');
 
-        $id        = filter_input(INPUT_POST, 'id', FILTER_VALIDATE_INT);
-        $nome      = trim($_POST['nome']      ?? '');
-        $email     = trim($_POST['email']     ?? '');
-        $telefone  = trim($_POST['telefone']  ?? '');
-        $matricula = trim($_POST['matricula'] ?? '');
-        $status    = $_POST['status']         ?? 'ativo';
+        $id          = filter_input(INPUT_POST, 'id', FILTER_VALIDATE_INT);
+        $nome        = trim($_POST['nome']        ?? '');
+        $documento   = trim($_POST['documento']   ?? '');
+        $email       = trim($_POST['email']       ?? '');
+        $telefone    = trim($_POST['telefone']    ?? '');
+        $curso       = trim($_POST['curso']       ?? '');
+        $periodo     = trim($_POST['periodo']     ?? '');
+        $observacoes = trim($_POST['observacoes'] ?? '');
+        $status      = $_POST['status']           ?? 'ativo';
 
-        if (!$id || $nome === '') {
+        if (!$id || $nome === '' || $documento === '' || $email === '') {
             http_response_code(400);
-            echo json_encode(['erro' => 'ID e nome são obrigatórios.']);
+            echo json_encode(['erro' => 'ID, nome, documento e e-mail são obrigatórios.']);
             return;
         }
 
-        if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             http_response_code(400);
             echo json_encode(['erro' => 'E-mail inválido.']);
             return;
@@ -142,20 +146,26 @@ class PessoasController
 
         try {
             $sql = 'UPDATE pessoas
-                    SET nome      = :nome,
-                        email     = :email,
-                        telefone  = :telefone,
-                        matricula = :matricula,
-                        status    = :status
+                    SET nome        = :nome,
+                        documento   = :documento,
+                        email       = :email,
+                        telefone    = :telefone,
+                        curso       = :curso,
+                        periodo     = :periodo,
+                        observacoes = :observacoes,
+                        status      = :status
                     WHERE id = :id';
 
             $stmt = $this->pdo->prepare($sql);
-            $stmt->bindValue(':nome',      $nome);
-            $stmt->bindValue(':email',     $email ?: null);
-            $stmt->bindValue(':telefone',  $telefone ?: null);
-            $stmt->bindValue(':matricula', $matricula ?: null);
-            $stmt->bindValue(':status',    $status);
-            $stmt->bindValue(':id',        $id, PDO::PARAM_INT);
+            $stmt->bindValue(':nome',        $nome);
+            $stmt->bindValue(':documento',   $documento);
+            $stmt->bindValue(':email',       $email);
+            $stmt->bindValue(':telefone',    $telefone  ?: null);
+            $stmt->bindValue(':curso',       $curso     ?: null);
+            $stmt->bindValue(':periodo',     $periodo   ?: null);
+            $stmt->bindValue(':observacoes', $observacoes ?: null);
+            $stmt->bindValue(':status',      $status);
+            $stmt->bindValue(':id',          $id, PDO::PARAM_INT);
             $stmt->execute();
 
             echo json_encode(['mensagem' => 'Pessoa atualizada com sucesso.'], JSON_UNESCAPED_UNICODE);
@@ -166,7 +176,6 @@ class PessoasController
         }
     }
 
-    // ─── INATIVAR (exclusão lógica) ─────────────────────────────────────────
     public function inativar(): void
     {
         header('Content-Type: application/json; charset=utf-8');

@@ -10,32 +10,35 @@ class AtendimentosController
         $this->pdo = $pdo;
     }
 
-    // ─── LISTAR TODOS (com JOIN) ─────────────────────────────────────────────
     public function listar(): void
     {
         header('Content-Type: application/json; charset=utf-8');
 
         $sql = 'SELECT
                     a.id,
+                    CONCAT("ATD-", LPAD(a.id, 4, "0")) AS protocolo,
                     p.nome        AS pessoa,
+                    p.documento   AS documento,
                     u.nome        AS atendente,
-                    t.descricao   AS tipo_atendimento,
+                    t.nome        AS tipo_atendimento,
                     a.descricao,
+                    a.data_atendimento,
+                    a.horario_atendimento,
+                    a.observacao_final,
                     a.status,
-                    a.data_atendimento
+                    a.criado_em
                 FROM atendimentos a
-                INNER JOIN pessoas           p ON p.id = a.pessoa_id
-                INNER JOIN usuarios          u ON u.id = a.usuario_id
+                INNER JOIN pessoas            p ON p.id = a.pessoa_id
+                INNER JOIN usuarios           u ON u.id = a.usuario_id
                 INNER JOIN tipos_atendimentos t ON t.id = a.tipo_atendimento_id
                 ORDER BY a.id DESC';
 
-        $stmt          = $this->pdo->query($sql);
-        $atendimentos  = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $stmt         = $this->pdo->query($sql);
+        $atendimentos = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         echo json_encode($atendimentos, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
     }
 
-    // ─── BUSCAR POR ID ──────────────────────────────────────────────────────
     public function buscarPorId(): void
     {
         header('Content-Type: application/json; charset=utf-8');
@@ -50,12 +53,17 @@ class AtendimentosController
 
         $sql = 'SELECT
                     a.id,
+                    CONCAT("ATD-", LPAD(a.id, 4, "0")) AS protocolo,
                     p.nome        AS pessoa,
+                    p.documento   AS documento,
                     u.nome        AS atendente,
-                    t.descricao   AS tipo_atendimento,
+                    t.nome        AS tipo_atendimento,
                     a.descricao,
+                    a.data_atendimento,
+                    a.horario_atendimento,
+                    a.observacao_final,
                     a.status,
-                    a.data_atendimento
+                    a.criado_em
                 FROM atendimentos a
                 INNER JOIN pessoas            p ON p.id = a.pessoa_id
                 INNER JOIN usuarios           u ON u.id = a.usuario_id
@@ -77,38 +85,41 @@ class AtendimentosController
         echo json_encode($atendimento, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
     }
 
-    // ─── CRIAR ──────────────────────────────────────────────────────────────
     public function criar(): void
     {
         header('Content-Type: application/json; charset=utf-8');
 
-        $pessoa_id          = filter_input(INPUT_POST, 'pessoa_id',          FILTER_VALIDATE_INT);
-        $usuario_id         = filter_input(INPUT_POST, 'usuario_id',         FILTER_VALIDATE_INT);
+        $pessoa_id           = filter_input(INPUT_POST, 'pessoa_id',           FILTER_VALIDATE_INT);
         $tipo_atendimento_id = filter_input(INPUT_POST, 'tipo_atendimento_id', FILTER_VALIDATE_INT);
-        $descricao          = trim($_POST['descricao'] ?? '');
-        $status             = $_POST['status']         ?? 'aberto';
+        $usuario_id          = filter_input(INPUT_POST, 'usuario_id',          FILTER_VALIDATE_INT);
+        $descricao           = trim($_POST['descricao']           ?? '');
+        $data_atendimento    = trim($_POST['data_atendimento']    ?? '');
+        $horario_atendimento = trim($_POST['horario_atendimento'] ?? '');
+        $status              = $_POST['status']                   ?? 'aberto';
 
-        if (!$pessoa_id || !$usuario_id || !$tipo_atendimento_id) {
+        if (!$pessoa_id || !$tipo_atendimento_id || !$usuario_id || $descricao === '' || $data_atendimento === '' || $horario_atendimento === '') {
             http_response_code(400);
-            echo json_encode(['erro' => 'pessoa_id, usuario_id e tipo_atendimento_id são obrigatórios.']);
+            echo json_encode(['erro' => 'pessoa_id, tipo_atendimento_id, usuario_id, descricao, data e horario são obrigatórios.']);
             return;
         }
 
-        if (!in_array($status, ['aberto', 'encerrado'], true)) {
+        if (!in_array($status, ['aberto', 'em_andamento', 'concluido'], true)) {
             http_response_code(400);
-            echo json_encode(['erro' => 'Status inválido. Use aberto ou encerrado.']);
+            echo json_encode(['erro' => 'Status inválido. Use aberto, em_andamento ou concluido.']);
             return;
         }
 
         try {
-            $sql  = 'INSERT INTO atendimentos (pessoa_id, usuario_id, tipo_atendimento_id, descricao, status)
-                     VALUES (:pessoa_id, :usuario_id, :tipo_atendimento_id, :descricao, :status)';
+            $sql = 'INSERT INTO atendimentos (pessoa_id, tipo_atendimento_id, usuario_id, descricao, data_atendimento, horario_atendimento, status)
+                    VALUES (:pessoa_id, :tipo_atendimento_id, :usuario_id, :descricao, :data_atendimento, :horario_atendimento, :status)';
 
             $stmt = $this->pdo->prepare($sql);
             $stmt->bindValue(':pessoa_id',           $pessoa_id,           PDO::PARAM_INT);
-            $stmt->bindValue(':usuario_id',          $usuario_id,          PDO::PARAM_INT);
             $stmt->bindValue(':tipo_atendimento_id', $tipo_atendimento_id, PDO::PARAM_INT);
-            $stmt->bindValue(':descricao',           $descricao ?: null);
+            $stmt->bindValue(':usuario_id',          $usuario_id,          PDO::PARAM_INT);
+            $stmt->bindValue(':descricao',           $descricao);
+            $stmt->bindValue(':data_atendimento',    $data_atendimento);
+            $stmt->bindValue(':horario_atendimento', $horario_atendimento);
             $stmt->bindValue(':status',              $status);
             $stmt->execute();
 
@@ -120,17 +131,17 @@ class AtendimentosController
 
         } catch (PDOException $e) {
             http_response_code(500);
-            echo json_encode(['erro' => 'Erro ao registrar atendimento.']);
+            echo json_encode(['erro' => 'Erro ao registrar atendimento. Verifique os IDs informados.']);
         }
     }
 
-    // ─── ATUALIZAR STATUS ───────────────────────────────────────────────────
-    public function atualizarStatus(): void
+    public function alterarStatus(): void
     {
         header('Content-Type: application/json; charset=utf-8');
 
-        $id     = filter_input(INPUT_POST, 'id',     FILTER_VALIDATE_INT);
-        $status = $_POST['status'] ?? '';
+        $id              = filter_input(INPUT_POST, 'id', FILTER_VALIDATE_INT);
+        $status          = $_POST['status']           ?? '';
+        $observacao_final = trim($_POST['observacao_final'] ?? '');
 
         if (!$id || $status === '') {
             http_response_code(400);
@@ -138,17 +149,28 @@ class AtendimentosController
             return;
         }
 
-        if (!in_array($status, ['aberto', 'encerrado'], true)) {
+        if (!in_array($status, ['aberto', 'em_andamento', 'concluido'], true)) {
             http_response_code(400);
-            echo json_encode(['erro' => 'Status inválido. Use aberto ou encerrado.']);
+            echo json_encode(['erro' => 'Status inválido. Use aberto, em_andamento ou concluido.']);
+            return;
+        }
+
+        if ($status === 'concluido' && $observacao_final === '') {
+            http_response_code(400);
+            echo json_encode(['erro' => 'A observação final é obrigatória para concluir o atendimento.']);
             return;
         }
 
         try {
-            $sql  = 'UPDATE atendimentos SET status = :status WHERE id = :id';
+            $sql  = 'UPDATE atendimentos
+                     SET status           = :status,
+                         observacao_final = :observacao_final
+                     WHERE id = :id';
+
             $stmt = $this->pdo->prepare($sql);
-            $stmt->bindValue(':status', $status);
-            $stmt->bindValue(':id',     $id, PDO::PARAM_INT);
+            $stmt->bindValue(':status',           $status);
+            $stmt->bindValue(':observacao_final', $observacao_final ?: null);
+            $stmt->bindValue(':id',               $id, PDO::PARAM_INT);
             $stmt->execute();
 
             echo json_encode(['mensagem' => 'Status do atendimento atualizado com sucesso.'], JSON_UNESCAPED_UNICODE);

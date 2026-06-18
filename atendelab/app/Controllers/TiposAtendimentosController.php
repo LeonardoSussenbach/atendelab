@@ -10,12 +10,11 @@ class TiposAtendimentosController
         $this->pdo = $pdo;
     }
 
-    // ─── LISTAR TODOS ───────────────────────────────────────────────────────
     public function listar(): void
     {
         header('Content-Type: application/json; charset=utf-8');
 
-        $sql = 'SELECT id, descricao, status, criado_em
+        $sql = 'SELECT id, nome, descricao, status, criado_em
                 FROM tipos_atendimentos
                 ORDER BY id DESC';
 
@@ -25,7 +24,6 @@ class TiposAtendimentosController
         echo json_encode($tipos, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
     }
 
-    // ─── BUSCAR POR ID ──────────────────────────────────────────────────────
     public function buscarPorId(): void
     {
         header('Content-Type: application/json; charset=utf-8');
@@ -38,9 +36,8 @@ class TiposAtendimentosController
             return;
         }
 
-        $sql  = 'SELECT id, descricao, status, criado_em
-                 FROM tipos_atendimentos
-                 WHERE id = :id';
+        $sql  = 'SELECT id, nome, descricao, status, criado_em
+                 FROM tipos_atendimentos WHERE id = :id';
 
         $stmt = $this->pdo->prepare($sql);
         $stmt->bindValue(':id', $id, PDO::PARAM_INT);
@@ -57,17 +54,17 @@ class TiposAtendimentosController
         echo json_encode($tipo, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
     }
 
-    // ─── CRIAR ──────────────────────────────────────────────────────────────
     public function criar(): void
     {
         header('Content-Type: application/json; charset=utf-8');
 
+        $nome      = trim($_POST['nome']      ?? '');
         $descricao = trim($_POST['descricao'] ?? '');
         $status    = $_POST['status']         ?? 'ativo';
 
-        if ($descricao === '') {
+        if ($nome === '') {
             http_response_code(400);
-            echo json_encode(['erro' => 'A descrição é obrigatória.']);
+            echo json_encode(['erro' => 'O nome é obrigatório.']);
             return;
         }
 
@@ -78,11 +75,12 @@ class TiposAtendimentosController
         }
 
         try {
-            $sql  = 'INSERT INTO tipos_atendimentos (descricao, status)
-                     VALUES (:descricao, :status)';
+            $sql  = 'INSERT INTO tipos_atendimentos (nome, descricao, status)
+                     VALUES (:nome, :descricao, :status)';
 
             $stmt = $this->pdo->prepare($sql);
-            $stmt->bindValue(':descricao', $descricao);
+            $stmt->bindValue(':nome',      $nome);
+            $stmt->bindValue(':descricao', $descricao ?: null);
             $stmt->bindValue(':status',    $status);
             $stmt->execute();
 
@@ -98,18 +96,18 @@ class TiposAtendimentosController
         }
     }
 
-    // ─── ATUALIZAR ──────────────────────────────────────────────────────────
     public function atualizar(): void
     {
         header('Content-Type: application/json; charset=utf-8');
 
         $id        = filter_input(INPUT_POST, 'id', FILTER_VALIDATE_INT);
+        $nome      = trim($_POST['nome']      ?? '');
         $descricao = trim($_POST['descricao'] ?? '');
         $status    = $_POST['status']         ?? 'ativo';
 
-        if (!$id || $descricao === '') {
+        if (!$id || $nome === '') {
             http_response_code(400);
-            echo json_encode(['erro' => 'ID e descrição são obrigatórios.']);
+            echo json_encode(['erro' => 'ID e nome são obrigatórios.']);
             return;
         }
 
@@ -121,12 +119,14 @@ class TiposAtendimentosController
 
         try {
             $sql = 'UPDATE tipos_atendimentos
-                    SET descricao = :descricao,
+                    SET nome      = :nome,
+                        descricao = :descricao,
                         status    = :status
                     WHERE id = :id';
 
             $stmt = $this->pdo->prepare($sql);
-            $stmt->bindValue(':descricao', $descricao);
+            $stmt->bindValue(':nome',      $nome);
+            $stmt->bindValue(':descricao', $descricao ?: null);
             $stmt->bindValue(':status',    $status);
             $stmt->bindValue(':id',        $id, PDO::PARAM_INT);
             $stmt->execute();
@@ -139,7 +139,6 @@ class TiposAtendimentosController
         }
     }
 
-    // ─── INATIVAR (exclusão lógica) ─────────────────────────────────────────
     public function inativar(): void
     {
         header('Content-Type: application/json; charset=utf-8');
